@@ -187,34 +187,6 @@ async def run_extraction_in_pool(path: str, filename: str, timeout: int) -> Tupl
 
 
 # ---- API endpoints ----
-@app.get("/", 
-         summary="API Information",
-         description="Get basic information about the Document Text Extractor API",
-         response_description="API information and available endpoints")
-async def root():
-    """
-    Root endpoint that provides basic information about the API.
-    
-    Returns:
-        dict: API information including title, version, and available endpoints
-    """
-    return {
-        "title": "Document Text Extractor API",
-        "version": "1.0.0",
-        "description": "A production-ready FastAPI service for extracting text from PDF and Word (.docx) documents",
-        "endpoints": {
-            "health": "/health",
-            "extract": "/extract",
-            "docs": "/docs",
-            "redoc": "/redoc",
-            "openapi": "/openapi.json"
-        },
-        "supported_formats": ["PDF (.pdf)", "Word (.docx, .docm, .dotx)"],
-        "max_file_size": f"{settings.MAX_FILE_SIZE_BYTES // (1024*1024)}MB",
-        "max_files_per_request": settings.MAX_TOTAL_FILES
-    }
-
-
 @app.get("/health", 
          summary="Health Check",
          description="Check the health status of the service and get configuration information",

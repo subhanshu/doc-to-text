@@ -187,34 +187,6 @@ async def run_extraction_in_pool(path: str, filename: str, timeout: int) -> Tupl
 
 
 # ---- API endpoints ----
-@app.get("/", 
-         summary="API Information",
-         description="Get basic information about the Document Text Extractor API",
-         response_description="API information and available endpoints")
-async def root():
-    """
-    Root endpoint that provides basic information about the API.
-    
-    Returns:
-        dict: API information including title, version, and available endpoints
-    """
-    return {
-        "title": "Document Text Extractor API",
-        "version": "1.0.0",
-        "description": "A production-ready FastAPI service for extracting text from PDF and Word (.docx) documents",
-        "endpoints": {
-            "health": "/health",
-            "extract": "/extract",
-            "docs": "/docs",
-            "redoc": "/redoc",
-            "openapi": "/openapi.json"
-        },
-        "supported_formats": ["PDF (.pdf)", "Word (.docx, .docm, .dotx)"],
-        "max_file_size": f"{settings.MAX_FILE_SIZE_BYTES // (1024*1024)}MB",
-        "max_files_per_request": settings.MAX_TOTAL_FILES
-    }
-
-
 @app.get("/health", 
          summary="Health Check",
          description="Check the health status of the service and get configuration information",
@@ -229,46 +201,14 @@ async def health():
     return {"status": "ok", "pool_workers": settings.PROCESS_POOL_WORKERS}
 
 
-@app.post("/extract",
-          summary="Extract Text from Documents",
-          description="Extract text content from multiple PDF and Word (.docx) files in parallel",
-          response_description="Extracted text results and any processing errors")
-async def extract(files: List[UploadFile] = File(..., description="PDF or Word (.docx) files to extract text from")):
-    """
-    Extract text from multiple uploaded files in parallel.
-    
-    This endpoint accepts multiple files and processes them concurrently using a process pool.
-    Supported file types: PDF (.pdf) and Word documents (.docx, .docm, .dotx)
-    
-    Args:
-        files: List of uploaded files (PDF or Word documents)
-        
-    Returns:
-        dict: Response containing:
-            - results: List of successful extractions with filename and extracted text
-            - errors: List of any processing errors with filename and error message
-            
-    Raises:
-        HTTPException: 400 if no files uploaded
-        HTTPException: 413 if too many files or file too large
-        HTTPException: 429 if server is busy
-        HTTPException: 504 if request times out
-        
-    Example Response:
-        {
-            "results": [
-                {
-                    "filename": "document.pdf",
-                    "text": "Extracted text content..."
-                }
-            ],
-            "errors": [
-                {
-                    "filename": "corrupted.pdf", 
-                    "error": "PDF extraction failed: Invalid PDF format"
-                }
-            ]
-        }
+@app.post("/extract")
+async def extract(files: List[UploadFile] = File(...)):
+    """Extract text from multiple uploaded files in parallel.
+
+    Response: {
+      "results": [ {"filename": str, "text": str }, ... ],
+      "errors": [ {"filename": str, "error": str}, ... ]
+    }
     """
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded")
