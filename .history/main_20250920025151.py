@@ -271,7 +271,6 @@ async def root():
             "extract": "/extract",
             "extract_with_progress": "/extract-progress",
             "progress": "/progress/{session_id}",
-            "sessions": "/sessions",
             "docs": "/docs",
             "redoc": "/redoc",
             "openapi": "/openapi.json"

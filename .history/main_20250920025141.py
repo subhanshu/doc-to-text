@@ -271,7 +271,6 @@ async def root():
             "extract": "/extract",
             "extract_with_progress": "/extract-progress",
             "progress": "/progress/{session_id}",
-            "sessions": "/sessions",
             "docs": "/docs",
             "redoc": "/redoc",
             "openapi": "/openapi.json"
@@ -573,21 +572,11 @@ async def cleanup_session(session_id: str):
     return {"message": f"Session {session_id} cleaned up"}
 
 
-# ---- Startup and shutdown events ----
-@app.on_event("startup")
-def startup_event():
-    """Initialize resources on startup"""
-    logger.info("Starting up Document Text Extractor API...")
-    # Start session cleanup scheduler
-    schedule_session_cleanup()
-    logger.info("Startup complete")
-
+# ---- Graceful shutdown ----
 @app.on_event("shutdown")
 def shutdown_event():
-    """Clean up resources on shutdown"""
-    logger.info("Shutting down...")
+    logger.info("Shutting down process pool")
     process_pool.shutdown(wait=True)
-    logger.info("Shutdown complete")
 
 
 if __name__ == "__main__":

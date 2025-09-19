@@ -196,67 +196,6 @@ def cleanup_progress(session_id: str):
     if session_id in progress_store:
         del progress_store[session_id]
 
-def cleanup_expired_sessions():
-    """Clean up sessions that have exceeded retention period"""
-    current_time = datetime.now()
-    expired_sessions = []
-    
-    for session_id, progress in progress_store.items():
-        # Check if session is completed and has exceeded retention period
-        if progress.end_time and progress.status in ['completed', 'failed']:
-            time_since_completion = (current_time - progress.end_time).total_seconds()
-            if time_since_completion > settings.SESSION_RETENTION_SECONDS:
-                expired_sessions.append(session_id)
-    
-    # Clean up expired sessions
-    for session_id in expired_sessions:
-        del progress_store[session_id]
-        logger.info(f"Cleaned up expired session: {session_id}")
-    
-    return len(expired_sessions)
-
-def cleanup_oldest_sessions():
-    """Clean up oldest completed sessions when we hit the limit"""
-    if len(progress_store) <= settings.MAX_SESSIONS:
-        return
-    
-    # Sort sessions by end_time (oldest first)
-    completed_sessions = [
-        (session_id, progress) 
-        for session_id, progress in progress_store.items() 
-        if progress.status in ['completed', 'failed'] and progress.end_time
-    ]
-    
-    # Sort by end_time (oldest first)
-    completed_sessions.sort(key=lambda x: x[1].end_time)
-    
-    # Remove oldest sessions until we're under the limit
-    sessions_to_remove = len(progress_store) - settings.MAX_SESSIONS
-    for i in range(min(sessions_to_remove, len(completed_sessions))):
-        session_id = completed_sessions[i][0]
-        del progress_store[session_id]
-        logger.info(f"Cleaned up oldest session: {session_id}")
-
-def schedule_session_cleanup():
-    """Schedule periodic cleanup of expired sessions"""
-    import threading
-    import time
-    
-    def cleanup_worker():
-        while True:
-            try:
-                time.sleep(60)  # Run cleanup every minute
-                expired_count = cleanup_expired_sessions()
-                if expired_count > 0:
-                    logger.info(f"Cleaned up {expired_count} expired sessions")
-            except Exception as e:
-                logger.error(f"Error in session cleanup: {e}")
-    
-    # Start cleanup thread
-    cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True)
-    cleanup_thread.start()
-    logger.info("Session cleanup scheduler started")
-
 # ---- API endpoints ----
 @app.get("/", 
          summary="API Information",
@@ -271,7 +210,6 @@ async def root():
             "extract": "/extract",
             "extract_with_progress": "/extract-progress",
             "progress": "/progress/{session_id}",
-            "sessions": "/sessions",
             "docs": "/docs",
             "redoc": "/redoc",
             "openapi": "/openapi.json"
@@ -477,13 +415,10 @@ async def process_files_with_progress(session_id: str, file_data: List[Dict[str,
          description="Get real-time progress for a bulk processing session")
 async def get_processing_progress(session_id: str):
     """Get progress for a processing session"""
-    # Clean up expired sessions before checking
-    cleanup_expired_sessions()
-    
     progress = get_progress(session_id)
     
     if not progress:
-        raise HTTPException(status_code=404, detail="Session not found or expired")
+        raise HTTPException(status_code=404, detail="Session not found")
     
     # Calculate elapsed time
     elapsed_time = (
@@ -496,12 +431,6 @@ async def get_processing_progress(session_id: str):
         if progress.total_files > 0 else 0
     )
     
-    # Calculate time until expiration for completed sessions
-    time_until_expiry = None
-    if progress.end_time and progress.status in ['completed', 'failed']:
-        time_since_completion = (datetime.now() - progress.end_time).total_seconds()
-        time_until_expiry = max(0, settings.SESSION_RETENTION_SECONDS - time_since_completion)
-    
     return {
         "session_id": progress.session_id,
         "status": progress.status,
@@ -513,51 +442,7 @@ async def get_processing_progress(session_id: str):
         "errors": progress.errors,
         "elapsed_time": round(elapsed_time, 1),
         "start_time": progress.start_time.isoformat(),
-        "end_time": progress.end_time.isoformat() if progress.end_time else None,
-        "time_until_expiry": round(time_until_expiry, 1) if time_until_expiry is not None else None
-    }
-
-
-@app.get("/sessions",
-         summary="List Active Sessions",
-         description="Get list of all active sessions with their status")
-async def list_sessions():
-    """List all active sessions"""
-    # Clean up expired sessions first
-    cleanup_expired_sessions()
-    
-    sessions = []
-    for session_id, progress in progress_store.items():
-        elapsed_time = (
-            (progress.end_time or datetime.now()) - progress.start_time
-        ).total_seconds()
-        
-        progress_percentage = (
-            (progress.processed_files / progress.total_files * 100) 
-            if progress.total_files > 0 else 0
-        )
-        
-        time_until_expiry = None
-        if progress.end_time and progress.status in ['completed', 'failed']:
-            time_since_completion = (datetime.now() - progress.end_time).total_seconds()
-            time_until_expiry = max(0, settings.SESSION_RETENTION_SECONDS - time_since_completion)
-        
-        sessions.append({
-            "session_id": session_id,
-            "status": progress.status,
-            "progress": round(progress_percentage, 1),
-            "total_files": progress.total_files,
-            "processed_files": progress.processed_files,
-            "current_file": progress.current_file,
-            "elapsed_time": round(elapsed_time, 1),
-            "start_time": progress.start_time.isoformat(),
-            "end_time": progress.end_time.isoformat() if progress.end_time else None,
-            "time_until_expiry": round(time_until_expiry, 1) if time_until_expiry is not None else None
-        })
-    
-    return {
-        "total_sessions": len(sessions),
-        "sessions": sessions
+        "end_time": progress.end_time.isoformat() if progress.end_time else None
     }
 
 
@@ -573,21 +458,11 @@ async def cleanup_session(session_id: str):
     return {"message": f"Session {session_id} cleaned up"}
 
 
-# ---- Startup and shutdown events ----
-@app.on_event("startup")
-def startup_event():
-    """Initialize resources on startup"""
-    logger.info("Starting up Document Text Extractor API...")
-    # Start session cleanup scheduler
-    schedule_session_cleanup()
-    logger.info("Startup complete")
-
+# ---- Graceful shutdown ----
 @app.on_event("shutdown")
 def shutdown_event():
-    """Clean up resources on shutdown"""
-    logger.info("Shutting down...")
+    logger.info("Shutting down process pool")
     process_pool.shutdown(wait=True)
-    logger.info("Shutdown complete")
 
 
 if __name__ == "__main__":

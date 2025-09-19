@@ -271,7 +271,6 @@ async def root():
             "extract": "/extract",
             "extract_with_progress": "/extract-progress",
             "progress": "/progress/{session_id}",
-            "sessions": "/sessions",
             "docs": "/docs",
             "redoc": "/redoc",
             "openapi": "/openapi.json"
@@ -518,49 +517,6 @@ async def get_processing_progress(session_id: str):
     }
 
 
-@app.get("/sessions",
-         summary="List Active Sessions",
-         description="Get list of all active sessions with their status")
-async def list_sessions():
-    """List all active sessions"""
-    # Clean up expired sessions first
-    cleanup_expired_sessions()
-    
-    sessions = []
-    for session_id, progress in progress_store.items():
-        elapsed_time = (
-            (progress.end_time or datetime.now()) - progress.start_time
-        ).total_seconds()
-        
-        progress_percentage = (
-            (progress.processed_files / progress.total_files * 100) 
-            if progress.total_files > 0 else 0
-        )
-        
-        time_until_expiry = None
-        if progress.end_time and progress.status in ['completed', 'failed']:
-            time_since_completion = (datetime.now() - progress.end_time).total_seconds()
-            time_until_expiry = max(0, settings.SESSION_RETENTION_SECONDS - time_since_completion)
-        
-        sessions.append({
-            "session_id": session_id,
-            "status": progress.status,
-            "progress": round(progress_percentage, 1),
-            "total_files": progress.total_files,
-            "processed_files": progress.processed_files,
-            "current_file": progress.current_file,
-            "elapsed_time": round(elapsed_time, 1),
-            "start_time": progress.start_time.isoformat(),
-            "end_time": progress.end_time.isoformat() if progress.end_time else None,
-            "time_until_expiry": round(time_until_expiry, 1) if time_until_expiry is not None else None
-        })
-    
-    return {
-        "total_sessions": len(sessions),
-        "sessions": sessions
-    }
-
-
 @app.delete("/progress/{session_id}",
            summary="Clean Up Session",
            description="Clean up progress data for a completed session")
@@ -573,21 +529,11 @@ async def cleanup_session(session_id: str):
     return {"message": f"Session {session_id} cleaned up"}
 
 
-# ---- Startup and shutdown events ----
-@app.on_event("startup")
-def startup_event():
-    """Initialize resources on startup"""
-    logger.info("Starting up Document Text Extractor API...")
-    # Start session cleanup scheduler
-    schedule_session_cleanup()
-    logger.info("Startup complete")
-
+# ---- Graceful shutdown ----
 @app.on_event("shutdown")
 def shutdown_event():
-    """Clean up resources on shutdown"""
-    logger.info("Shutting down...")
+    logger.info("Shutting down process pool")
     process_pool.shutdown(wait=True)
-    logger.info("Shutdown complete")
 
 
 if __name__ == "__main__":
