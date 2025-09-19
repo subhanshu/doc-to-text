@@ -647,94 +647,12 @@ async def extract(files: List[UploadFile] = File(..., description="PDF or Word (
 
 @app.post("/extract-progress",
           summary="Extract Text with Progress Tracking",
-          description="Extract text from files with real-time progress tracking using background processing",
-          response_model=ExtractProgressResponse,
-          responses={
-              202: {
-                  "description": "Processing started successfully",
-                  "content": {
-                      "application/json": {
-                          "example": {
-                              "session_id": "123e4567-e89b-12d3-a456-426614174000",
-                              "status": "processing",
-                              "message": "Processing started. Use /progress/{session_id} to track progress."
-                          }
-                      }
-                  }
-              },
-              400: {
-                  "description": "Bad Request - No files uploaded",
-                  "content": {
-                      "application/json": {
-                          "example": {"detail": "No files uploaded"}
-                      }
-                  }
-              },
-              413: {
-                  "description": "Payload Too Large - Too many files or file too large",
-                  "content": {
-                      "application/json": {
-                          "example": {"detail": "Too many files. Max allowed 8"}
-                      }
-                  }
-              }
-          },
-          tags=["Text Extraction", "Progress Tracking"])
+          description="Extract text from files with real-time progress tracking")
 async def extract_with_progress(
     background_tasks: BackgroundTasks,
-    files: List[UploadFile] = File(..., description="PDF or Word (.docx) files to extract text from")
+    files: List[UploadFile] = File(...)
 ):
-    """
-    Extract Text with Progress Tracking
-    
-    Start background processing of multiple PDF and Word (.docx) files with real-time progress tracking.
-    This endpoint is ideal for bulk operations where you need to monitor progress.
-    
-    **How it works:**
-    1. Upload files to this endpoint
-    2. Receive a session ID for tracking
-    3. Use `/progress/{session_id}` to check progress
-    4. Results are available when status is "completed"
-    5. Session is retained for 5 minutes after completion
-    
-    **Supported File Types:**
-    - PDF files (.pdf)
-    - Word documents (.docx, .docm, .dotx)
-    
-    **File Limits:**
-    - Maximum file size: 20MB per file
-    - Maximum files per request: 8 files
-    - Maximum concurrent requests: 3
-    
-    **Session Management:**
-    - Sessions are retained for 5 minutes after completion
-    - Use `/sessions` to list all active sessions
-    - Use `/progress/{session_id}` to check progress
-    - Use `DELETE /progress/{session_id}` to clean up early
-    
-    **Progress Tracking:**
-    - Real-time progress percentage (0-100%)
-    - Current file being processed
-    - Elapsed time and estimated completion
-    - Detailed results and error information
-    
-    **Example Usage:**
-    ```bash
-    # Start processing
-    curl -X POST "https://api.example.com/extract-progress" \
-         -H "Content-Type: multipart/form-data" \
-         -F "files=@document1.pdf" \
-         -F "files=@document2.docx"
-    
-    # Check progress (replace SESSION_ID)
-    curl -X GET "https://api.example.com/progress/SESSION_ID"
-    ```
-    
-    **Response:**
-    - `session_id`: Unique identifier for tracking progress
-    - `status`: Current processing status ("processing")
-    - `message`: Instructions for tracking progress
-    """
+    """New endpoint that provides progress tracking for bulk operations"""
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded")
     if len(files) > settings.MAX_TOTAL_FILES:
@@ -856,94 +774,9 @@ async def process_files_with_progress(session_id: str, file_data: List[Dict[str,
 
 @app.get("/progress/{session_id}",
          summary="Get Processing Progress",
-         description="Get real-time progress for a bulk processing session including current status, progress percentage, and results",
-         response_model=ProgressResponse,
-         responses={
-             200: {
-                 "description": "Progress information retrieved successfully",
-                 "content": {
-                     "application/json": {
-                         "example": {
-                             "session_id": "123e4567-e89b-12d3-a456-426614174000",
-                             "status": "completed",
-                             "progress": 100.0,
-                             "total_files": 3,
-                             "processed_files": 3,
-                             "current_file": None,
-                             "results": [
-                                 {
-                                     "filename": "document1.pdf",
-                                     "text": "Extracted text content..."
-                                 }
-                             ],
-                             "errors": [],
-                             "elapsed_time": 2.5,
-                             "start_time": "2025-01-20T10:30:00",
-                             "end_time": "2025-01-20T10:30:02",
-                             "time_until_expiry": 297.5
-                         }
-                     }
-                 }
-             },
-             404: {
-                 "description": "Session not found or expired",
-                 "content": {
-                     "application/json": {
-                         "example": {"detail": "Session not found or expired"}
-                     }
-                 }
-             }
-         },
-         tags=["Progress Tracking"])
+         description="Get real-time progress for a bulk processing session")
 async def get_processing_progress(session_id: str):
-    """
-    Get Processing Progress
-    
-    Retrieve real-time progress information for a bulk processing session.
-    This endpoint provides detailed status, progress percentage, and results.
-    
-    **Session States:**
-    - `processing`: Files are being processed
-    - `completed`: All files processed successfully
-    - `failed`: Processing failed with errors
-    
-    **Progress Information:**
-    - `progress`: Completion percentage (0-100%)
-    - `processed_files`: Number of files completed
-    - `total_files`: Total number of files to process
-    - `current_file`: Currently processing file (if any)
-    - `elapsed_time`: Time since processing started
-    - `time_until_expiry`: Time until session expires (for completed sessions)
-    
-    **Results and Errors:**
-    - `results`: List of successfully processed files with extracted text
-    - `errors`: List of any processing errors with details
-    
-    **Session Retention:**
-    - Sessions are retained for 5 minutes after completion
-    - Expired sessions return 404 Not Found
-    - Use `/sessions` to list all active sessions
-    
-    **Example Usage:**
-    ```bash
-    # Check progress
-    curl -X GET "https://api.example.com/progress/123e4567-e89b-12d3-a456-426614174000"
-    ```
-    
-    **Response Fields:**
-    - `session_id`: Unique session identifier
-    - `status`: Current processing status
-    - `progress`: Completion percentage
-    - `total_files`: Total files to process
-    - `processed_files`: Files completed
-    - `current_file`: Currently processing file
-    - `results`: Successfully processed files
-    - `errors`: Processing errors
-    - `elapsed_time`: Processing duration in seconds
-    - `start_time`: Processing start time (ISO format)
-    - `end_time`: Processing end time (ISO format, null if processing)
-    - `time_until_expiry`: Time until session expires (seconds, null if processing)
-    """
+    """Get progress for a processing session"""
     # Clean up expired sessions before checking
     cleanup_expired_sessions()
     
@@ -987,92 +820,9 @@ async def get_processing_progress(session_id: str):
 
 @app.get("/sessions",
          summary="List Active Sessions",
-         description="Get list of all active sessions with their current status, progress, and metadata",
-         response_model=SessionsListResponse,
-         responses={
-             200: {
-                 "description": "Sessions list retrieved successfully",
-                 "content": {
-                     "application/json": {
-                         "example": {
-                             "total_sessions": 2,
-                             "sessions": [
-                                 {
-                                     "session_id": "123e4567-e89b-12d3-a456-426614174000",
-                                     "status": "completed",
-                                     "progress": 100.0,
-                                     "total_files": 3,
-                                     "processed_files": 3,
-                                     "current_file": None,
-                                     "elapsed_time": 2.5,
-                                     "start_time": "2025-01-20T10:30:00",
-                                     "end_time": "2025-01-20T10:30:02",
-                                     "time_until_expiry": 297.5
-                                 },
-                                 {
-                                     "session_id": "987fcdeb-51a2-43d1-b456-426614174000",
-                                     "status": "processing",
-                                     "progress": 66.7,
-                                     "total_files": 3,
-                                     "processed_files": 2,
-                                     "current_file": "document3.pdf",
-                                     "elapsed_time": 1.2,
-                                     "start_time": "2025-01-20T10:32:00",
-                                     "end_time": None,
-                                     "time_until_expiry": None
-                                 }
-                             ]
-                         }
-                     }
-                 }
-             }
-         },
-         tags=["Progress Tracking", "Session Management"])
+         description="Get list of all active sessions with their status")
 async def list_sessions():
-    """
-    List Active Sessions
-    
-    Retrieve a list of all currently active sessions with their status and progress information.
-    This endpoint is useful for monitoring and managing multiple processing sessions.
-    
-    **Session Information:**
-    - `session_id`: Unique identifier for each session
-    - `status`: Current processing status (processing, completed, failed)
-    - `progress`: Completion percentage (0-100%)
-    - `total_files`: Total number of files to process
-    - `processed_files`: Number of files completed
-    - `current_file`: Currently processing file (if any)
-    - `elapsed_time`: Time since processing started
-    - `start_time`: Processing start time (ISO format)
-    - `end_time`: Processing end time (ISO format, null if processing)
-    - `time_until_expiry`: Time until session expires (seconds, null if processing)
-    
-    **Session States:**
-    - `processing`: Files are being processed
-    - `completed`: All files processed successfully
-    - `failed`: Processing failed with errors
-    
-    **Session Management:**
-    - Sessions are automatically cleaned up after 5 minutes of completion
-    - Use `/progress/{session_id}` for detailed progress information
-    - Use `DELETE /progress/{session_id}` to clean up sessions early
-    
-    **Use Cases:**
-    - Monitor multiple concurrent processing sessions
-    - Check system load and active sessions
-    - Debug session-related issues
-    - Clean up old or stuck sessions
-    
-    **Example Usage:**
-    ```bash
-    # List all active sessions
-    curl -X GET "https://api.example.com/sessions"
-    ```
-    
-    **Response:**
-    - `total_sessions`: Number of active sessions
-    - `sessions`: List of session information objects
-    """
+    """List all active sessions"""
     # Clean up expired sessions first
     cleanup_expired_sessions()
     
@@ -1113,62 +863,9 @@ async def list_sessions():
 
 @app.delete("/progress/{session_id}",
            summary="Clean Up Session",
-           description="Manually clean up progress data for a specific session",
-           response_model=MessageResponse,
-           responses={
-               200: {
-                   "description": "Session cleaned up successfully",
-                   "content": {
-                       "application/json": {
-                           "example": {
-                               "message": "Session 123e4567-e89b-12d3-a456-426614174000 cleaned up"
-                           }
-                       }
-                   }
-               },
-               404: {
-                   "description": "Session not found",
-                   "content": {
-                       "application/json": {
-                           "example": {"detail": "Session not found"}
-                       }
-                   }
-               }
-           },
-           tags=["Session Management"])
+           description="Clean up progress data for a completed session")
 async def cleanup_session(session_id: str):
-    """
-    Clean Up Session
-    
-    Manually remove a specific session from memory. This is useful for cleaning up
-    completed sessions before their automatic expiration.
-    
-    **When to use:**
-    - Clean up completed sessions early
-    - Free up memory for new sessions
-    - Remove failed sessions that are no longer needed
-    - Debug session-related issues
-    
-    **Session Cleanup:**
-    - Sessions are automatically cleaned up after 5 minutes of completion
-    - Manual cleanup removes the session immediately
-    - Once cleaned up, the session cannot be accessed again
-    - Use `/sessions` to see which sessions are available for cleanup
-    
-    **Important Notes:**
-    - This action cannot be undone
-    - Make sure to retrieve any needed results before cleanup
-    - Cleanup is not required - sessions expire automatically
-    
-    **Example Usage:**
-    ```bash
-    # Clean up a specific session
-    curl -X DELETE "https://api.example.com/progress/123e4567-e89b-12d3-a456-426614174000"
-    ```
-    
-    **Response:**
-    - `message`: Confirmation message with the cleaned up session ID
-    """
+    """Clean up progress data for a session"""
     if session_id not in progress_store:
         raise HTTPException(status_code=404, detail="Session not found")
     

@@ -1113,62 +1113,9 @@ async def list_sessions():
 
 @app.delete("/progress/{session_id}",
            summary="Clean Up Session",
-           description="Manually clean up progress data for a specific session",
-           response_model=MessageResponse,
-           responses={
-               200: {
-                   "description": "Session cleaned up successfully",
-                   "content": {
-                       "application/json": {
-                           "example": {
-                               "message": "Session 123e4567-e89b-12d3-a456-426614174000 cleaned up"
-                           }
-                       }
-                   }
-               },
-               404: {
-                   "description": "Session not found",
-                   "content": {
-                       "application/json": {
-                           "example": {"detail": "Session not found"}
-                       }
-                   }
-               }
-           },
-           tags=["Session Management"])
+           description="Clean up progress data for a completed session")
 async def cleanup_session(session_id: str):
-    """
-    Clean Up Session
-    
-    Manually remove a specific session from memory. This is useful for cleaning up
-    completed sessions before their automatic expiration.
-    
-    **When to use:**
-    - Clean up completed sessions early
-    - Free up memory for new sessions
-    - Remove failed sessions that are no longer needed
-    - Debug session-related issues
-    
-    **Session Cleanup:**
-    - Sessions are automatically cleaned up after 5 minutes of completion
-    - Manual cleanup removes the session immediately
-    - Once cleaned up, the session cannot be accessed again
-    - Use `/sessions` to see which sessions are available for cleanup
-    
-    **Important Notes:**
-    - This action cannot be undone
-    - Make sure to retrieve any needed results before cleanup
-    - Cleanup is not required - sessions expire automatically
-    
-    **Example Usage:**
-    ```bash
-    # Clean up a specific session
-    curl -X DELETE "https://api.example.com/progress/123e4567-e89b-12d3-a456-426614174000"
-    ```
-    
-    **Response:**
-    - `message`: Confirmation message with the cleaned up session ID
-    """
+    """Clean up progress data for a session"""
     if session_id not in progress_store:
         raise HTTPException(status_code=404, detail="Session not found")
     
