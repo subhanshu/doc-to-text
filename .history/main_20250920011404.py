@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     # Overall request timeout
     REQUEST_TIMEOUT: int = 120
     # Temp dir base
-    TEMP_DIR: str | None = None
+    TEMP_DIR: str = None
 
     class Config:
         env_prefix = "EXTRACT_"

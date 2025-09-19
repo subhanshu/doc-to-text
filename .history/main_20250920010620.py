@@ -36,7 +36,7 @@ from typing import List, Tuple
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, status
 from fastapi.responses import JSONResponse
-from pydantic_settings import BaseSettings
+from pydantic import BaseSettings
 
 # Extraction libraries
 import pdfplumber
@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     # Overall request timeout
     REQUEST_TIMEOUT: int = 120
     # Temp dir base
-    TEMP_DIR: str | None = None
+    TEMP_DIR: str = None
 
     class Config:
         env_prefix = "EXTRACT_"
