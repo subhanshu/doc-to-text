@@ -325,7 +325,7 @@ async def extract_with_progress(
     })
 
 
-async def process_files_with_progress(session_id: str, file_data: List[Dict[str, Any]]):
+async def process_files_with_progress(session_id: str, files: List[UploadFile]):
     """Background task to process files with progress updates"""
     
     # Acquire semaphore to limit concurrent requests
@@ -340,20 +340,15 @@ async def process_files_with_progress(session_id: str, file_data: List[Dict[str,
     errors = []
 
     try:
-        # Save all file data to temp files first
-        for file_info in file_data:
+        # Save all uploads to temp files first
+        for upload in files:
             try:
-                # Create temp file and write content
-                suffix = os.path.splitext(file_info["filename"])[1]
-                fd, path = tempfile.mkstemp(suffix=suffix, dir=settings.TEMP_DIR)
-                os.close(fd)
-                
-                with open(path, "wb") as f:
-                    f.write(file_info["content"])
-                
-                temp_paths.append((path, file_info["filename"]))
+                # Reset file pointer before saving
+                upload.file.seek(0)
+                path = save_upload_to_tempfile(upload, settings.MAX_FILE_SIZE_BYTES)
+                temp_paths.append((path, upload.filename))
             except Exception as e:
-                errors.append({"filename": file_info["filename"], "error": str(e)})
+                errors.append({"filename": upload.filename, "error": str(e)})
 
         # Process files one by one for better progress tracking
         for i, (path, filename) in enumerate(temp_paths):
